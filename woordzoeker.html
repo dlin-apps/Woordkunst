@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Woordzoeker — Nederlandse woordzoekermaker</title>
+<style>
+  :root{
+    --bg:#F7F5F0;
+    --card:#FFFFFF;
+    --ink:#2B2622;
+    --muted:#7A736A;
+    --border:#E5E0D6;
+    --accent:#3E5C46;          /* diep groen */
+    --accent-ink:#FFFFFF;
+    --wood-dark:#7A4C29;
+    --wood-mid:#8A5A34;
+    --wood-light:#EBD6B2;
+    --tile-ink:#5B4226;
+    --hl-h:#B85C4E;            /* terracotta — horizontaal */
+    --hl-v:#52708F;            /* leisteenblauw — verticaal */
+    --hl-d:#C9A227;            /* oker — diagonaal */
+    --body:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+    --tile-font:"Arial Rounded MT Bold","Trebuchet MS",Verdana,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55}
+
+  /* ---------- kop ---------- */
+  header{padding:26px 28px 20px;border-bottom:1px solid var(--border);background:var(--card)}
+  h1{font-size:clamp(22px,3.4vw,30px);font-weight:700;letter-spacing:-0.02em}
+  .subtitle{color:var(--muted);font-size:14px;margin-top:2px}
+
+  /* ---------- indeling ---------- */
+  main{display:grid;grid-template-columns:330px 1fr;gap:28px;padding:28px;align-items:start;max-width:1400px;margin:0 auto}
+  @media (max-width:900px){ main{grid-template-columns:1fr;padding:18px;gap:20px} }
+
+  /* ---------- bedieningspaneel ---------- */
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;box-shadow:0 1px 3px rgba(43,38,34,.05)}
+  .field{margin-bottom:20px}
+  label.top{display:block;font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:7px}
+  .hint{font-size:12.5px;color:var(--muted);margin-top:5px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  input[type=number],textarea{
+    width:100%;border:1px solid var(--border);background:#FCFBF8;padding:9px 11px;
+    font-family:var(--body);font-size:14px;border-radius:8px;color:var(--ink)
+  }
+  textarea{min-height:110px;resize:vertical;font-family:ui-monospace,"SF Mono","Cascadia Mono",monospace;font-size:13.5px}
+  input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .check{display:flex;align-items:center;gap:9px;margin:7px 0;font-size:14px}
+  .check input{width:16px;height:16px;accent-color:var(--accent)}
+
+  .seg{display:flex;background:#F0EDE6;border-radius:9px;padding:3px;gap:3px}
+  .seg button{flex:1;border:none;background:transparent;padding:8px 4px;font-family:var(--body);
+    font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-radius:7px;transition:background .15s,color .15s}
+  .seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(43,38,34,.12)}
+
+  .btn{
+    display:block;width:100%;border:none;background:var(--accent);color:var(--accent-ink);
+    font-family:var(--body);font-size:15px;font-weight:600;padding:13px;cursor:pointer;
+    border-radius:10px;transition:filter .12s,transform .06s
+  }
+  .btn:hover{filter:brightness(1.08)}
+  .btn:active{transform:scale(.985)}
+  .btn.secondary{background:#F0EDE6;color:var(--ink);font-size:13.5px;padding:10px;margin-top:10px}
+  .btn.secondary:hover{filter:none;background:#E7E3D9}
+  .btn:disabled{opacity:.45;cursor:default;transform:none}
+  .btn:disabled:hover{filter:none;background:#F0EDE6}
+  .btn.secondary:disabled:hover{background:#F0EDE6}
+
+  /* ---------- houten bord ---------- */
+  .grid-wrap{
+    display:inline-block;padding:16px;border-radius:16px;
+    background:
+      linear-gradient(160deg, rgba(255,255,255,.14), rgba(0,0,0,.16)),
+      repeating-linear-gradient(7deg, var(--wood-mid) 0 9px, var(--wood-dark) 9px 15px, #96613A 15px 27px);
+    box-shadow: inset 0 2px 5px rgba(0,0,0,.3), inset 0 -2px 4px rgba(255,255,255,.12), 0 8px 22px rgba(43,38,34,.22);
+  }
+  .grid-inner{
+    background:#F3E9D6;border-radius:9px;padding:9px;
+    box-shadow: inset 0 3px 9px rgba(90,60,30,.35);
+  }
+  table.ws{border-collapse:separate;border-spacing:4px}
+  table.ws td{
+    width:var(--cell,30px);height:var(--cell,30px);text-align:center;vertical-align:middle;
+    font-family:var(--tile-font);font-weight:800;font-size:calc(var(--cell,30px)*.52);
+    color:var(--tile-ink);border-radius:5px;user-select:none;
+    background:
+      linear-gradient(148deg, rgba(255,255,255,.28), rgba(93,62,29,.12)),
+      repeating-linear-gradient(96deg, #E6CDA4 0 7px, #DDC195 7px 12px, #EBD6B2 12px 20px);
+    box-shadow: 0 2px 3px rgba(74,52,28,.35), inset 0 1px 0 rgba(255,255,255,.4);
+    text-shadow: 0 1px 0 rgba(255,255,255,.5), 0 -1px 1px rgba(60,38,15,.4);
+  }
+  td.h-h{background:var(--hl-h);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.3)}
+  td.h-v{background:var(--hl-v);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.3)}
+  td.h-d{background:var(--hl-d);color:#3A3010;text-shadow:0 1px 0 rgba(255,255,255,.35)}
+  td.hover-word{outline:3px solid var(--accent);outline-offset:-2px}
+
+  /* ---------- woordenlijst ---------- */
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin:16px 0 4px;font-size:13px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .sw{width:13px;height:13px;border-radius:4px;display:inline-block}
+  .sw.r{background:var(--hl-h)} .sw.b{background:var(--hl-v)} .sw.y{background:var(--hl-d)}
+  .stage h2{font-size:13px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:24px 0 4px}
+  .words{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;max-width:900px}
+  .word-chip{
+    border:1px solid var(--border);background:var(--card);padding:6px 12px;
+    font-family:ui-monospace,"SF Mono",monospace;font-size:13px;letter-spacing:.05em;
+    border-radius:8px;cursor:pointer;color:var(--ink)
+  }
+  .word-chip:hover{border-color:var(--accent);background:#F5F8F5}
+  .word-chip.missed{background:#F0EDE6;color:var(--muted);text-decoration:line-through;cursor:default}
+  .word-chip.missed:hover{border-color:var(--border)}
+  .notice{margin-top:14px;font-size:13.5px;background:var(--card);border:1px solid var(--border);
+    border-left:4px solid var(--hl-d);border-radius:8px;padding:11px 14px;max-width:620px}
+  .notice.bad{border-left-color:var(--hl-h)}
+  .meta{font-size:12.5px;color:var(--muted);margin-top:14px;line-height:1.5}
+  .empty{border:2px dashed var(--border);border-radius:14px;padding:60px 30px;text-align:center;color:var(--muted);max-width:640px;background:var(--card)}
+  .empty b{font-size:15px;color:var(--ink);display:block;margin-bottom:6px}
+
+  /* ---------- afdrukken ---------- */
+  @media print{
+    header,.panel,.no-print{display:none !important}
+    main{display:block;padding:0}
+    .grid-wrap{background:#fff;box-shadow:none;padding:0;border:3px solid #333;border-radius:0}
+    .grid-inner{background:#fff;box-shadow:none;padding:6px}
+    table.ws td{background:#fff;box-shadow:none;text-shadow:none;border:1px solid #ccc;border-radius:0;color:#111}
+    td.h-h,td.h-v,td.h-d{background:#fff !important;color:#111 !important}
+    body.print-solution td.h-h{background:var(--hl-h) !important;color:#fff !important}
+    body.print-solution td.h-v{background:var(--hl-v) !important;color:#fff !important}
+    body.print-solution td.h-d{background:var(--hl-d) !important;color:#111 !important}
+    .word-chip{cursor:default}
+  }
+  @media (prefers-reduced-motion:reduce){ .btn,.seg button{transition:none} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Woordzoeker</h1>
+  <p class="subtitle">Nederlandse woordzoekermaker · zonder scheldwoorden, gegarandeerd</p>
+</header>
+
+<main>
+  <!-- ================= BEDIENING ================= -->
+  <aside class="panel">
+    <div class="field">
+      <label class="top">Rasterformaat (rijen × kolommen)</label>
+      <div class="row2">
+        <input id="rows" type="number" min="5" max="40" value="15" aria-label="Rijen">
+        <input id="cols" type="number" min="5" max="40" value="10" aria-label="Kolommen">
+      </div>
+      <div class="hint">5–40 per richting, bijvoorbeeld 15 × 10.</div>
+    </div>
+
+    <div class="field">
+      <label class="top">Woorden</label>
+      <div class="seg" role="tablist">
+        <button id="modeCustom" class="on" type="button">Eigen woorden</button>
+        <button id="modeRandom" type="button">Willekeurig</button>
+      </div>
+      <div id="customBox" style="margin-top:12px">
+        <textarea id="wordInput" spellcheck="false" placeholder="Eén woord per regel (of met komma's)&#10;TULP&#10;GRACHT&#10;STROOPWAFEL"></textarea>
+        <div class="hint">Alleen letters A–Z; accenten worden vereenvoudigd (é → E). IJ telt als twee letters, zoals in de meeste puzzels.</div>
+      </div>
+      <div id="randomBox" style="display:none;margin-top:12px">
+        <label class="top" for="wordCount">Hoeveel woorden?</label>
+        <input id="wordCount" type="number" min="1" max="40" value="12">
+        <div class="hint">Gekozen uit een ingebouwde lijst met alledaagse Nederlandse woorden.</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="top">Richtingen</label>
+      <div class="check"><input id="dirH" type="checkbox" checked><label for="dirH">Horizontaal</label></div>
+      <div class="check"><input id="dirV" type="checkbox" checked><label for="dirV">Verticaal</label></div>
+      <div class="check"><input id="dirD" type="checkbox" checked><label for="dirD">Diagonaal</label></div>
+      <div class="check"><input id="dirRev" type="checkbox"><label for="dirRev">Ook achterstevoren (moeilijker)</label></div>
+    </div>
+
+    <button class="btn" id="generateBtn" type="button">Maak puzzel</button>
+    <button class="btn secondary" id="solutionBtn" type="button" disabled>Toon oplossing</button>
+    <button class="btn secondary" id="printBtn" type="button" disabled>Afdrukken</button>
+
+    <p class="meta">Opvulletters volgen de Nederlandse letterfrequentie en worden automatisch gecontroleerd, zodat er nergens scheldwoorden ontstaan — horizontaal, verticaal of diagonaal, ook niet achterstevoren.</p>
+  </aside>
+
+  <!-- ================= PUZZEL ================= -->
+  <section class="stage" id="stage">
+    <div class="empty" id="emptyState">
+      <b>Nog geen puzzel</b>
+      Kies een rasterformaat, voeg links woorden toe en klik op “Maak puzzel”.
+    </div>
+    <div id="puzzleArea" style="display:none">
+      <div class="grid-wrap"><div class="grid-inner"><table class="ws" id="gridTable" aria-label="Woordzoekerraster"></table></div></div>
+
+      <div class="legend no-print" id="legend" style="display:none">
+        <span><i class="sw r"></i>Horizontaal</span>
+        <span><i class="sw b"></i>Verticaal</span>
+        <span><i class="sw y"></i>Diagonaal</span>
+      </div>
+
+      <h2>Zoek deze woorden</h2>
+      <div class="words" id="wordList"></div>
+      <div id="notices"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+/* =========================================================
+   1. WOORDGEGEVENS
+   ========================================================= */
+
+// Ingebouwde lijst met alledaagse Nederlandse woorden voor de willekeurige modus
+const DUTCH_BANK = [
+"FIETS","TULP","MOLEN","KAAS","GRACHT","STROOPWAFEL","GEZELLIG","APPEL","BOTER","HUIS",
+"TUIN","BLOEM","WOLK","REGEN","ZON","MAAN","STER","WATER","VUUR","AARDE",
+"LUCHT","VOGEL","KAT","HOND","PAARD","KOE","SCHAAP","KONIJN","VIS","BOOM",
+"BOS","STRAND","ZEE","DUIN","POLDER","DIJK","BRUG","TREIN","TRAM","STAD",
+"DORP","STRAAT","PLEIN","MARKT","WINKEL","SCHOOL","BOEK","TAFEL","STOEL","RAAM",
+"DEUR","KEUKEN","BROOD","MELK","KOFFIE","THEE","SUIKER","ZOUT","PEPER","SOEP",
+"PANNENKOEK","HAGELSLAG","DROP","ORANJE","KONING","FEEST","MUZIEK","DANSEN","SPEL","WINTER",
+"ZOMER","LENTE","HERFST","SNEEUW","SCHAATSEN","VOETBAL","ZWEMMEN","WANDELEN","VAKANTIE","VRIEND",
+"FAMILIE","MOEDER","VADER","BROER","ZUS","BABY","LACHEN","DROOM","LIEFDE","GELUK",
+"MOOI","GROOT","KLEIN","SNEL","VROLIJK","GRAPPIG","FIETSEN","BAKKER","SLAGER","BIBLIOTHEEK"
+];
+
+// Blokkadelijst: kwetsende woorden in het Nederlands (plus enkele Engelse) die
+// nooit in het eindresultaat mogen voorkomen, in geen enkele richting.
+const BLOCKLIST = [
+// Nederlands
+"KUT","LUL","PIK","KAK","REET","ZEIK","NEUK","NAAIEN","GEIL",
+"KLOTE","KLOOT","KLOOTZAK","HOER","SLET","TEEF","TRUT","EIKEL","HUFTER",
+"KANKER","TYFUS","TERING","TAKKE","POKKE","GODVER","GADVER",
+"FLIKKER","MIETJE","MONGOOL","DEBIEL","SUKKEL","IDIOOT","STOMKOP","ROTZAK",
+"PENIS","VAGINA","ANUS","SPERMA","TIETEN","KONT","POEP","PIES","SEKS",
+// Engels (komt vaak genoeg voor in Nederlandse context)
+"FUCK","SHIT","CUNT","DICK","COCK","BITCH","PISS","SLUT","WHORE","NAZI","SEX"
+];
+
+// Nederlandse letterfrequentie (bij benadering) voor natuurlijke opvulling
+const FREQ = [
+["E",18.9],["N",10.0],["A",7.5],["T",6.8],["I",6.5],["R",6.4],["O",6.1],["D",5.9],
+["S",3.7],["L",3.6],["G",3.4],["V",2.9],["H",2.4],["K",2.3],["M",2.2],["U",2.0],
+["B",1.6],["P",1.6],["W",1.5],["J",1.5],["Z",1.4],["C",1.2],["F",0.8],["X",0.04],["Y",0.04],["Q",0.01]
+];
+const FREQ_TOTAL = FREQ.reduce((s,[,w])=>s+w,0);
+
+function randomLetter(){
+  let r = Math.random()*FREQ_TOTAL;
+  for(const [ch,w] of FREQ){ r -= w; if(r<=0) return ch; }
+  return "E";
+}
+function randomLetterExcept(bad){
+  for(let i=0;i<50;i++){ const c=randomLetter(); if(c!==bad) return c; }
+  return bad==="X" ? "E" : "X";
+}
+
+/* =========================================================
+   2. GENERATIE
+   ========================================================= */
+
+function normalizeWord(raw){
+  return raw.normalize("NFD").replace(/[\u0300-\u036f]/g,"") // accenten weg
+            .toUpperCase().replace(/[^A-Z]/g,"");
+}
+
+function parseCustomWords(text){
+  const seen = new Set(); const out = [];
+  for(const raw of text.split(/[\n,;]+/)){
+    const w = normalizeWord(raw);
+    if(w.length>=2 && !seen.has(w)){ seen.add(w); out.push(w); }
+  }
+  return out;
+}
+
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+  return arr;
+}
+
+function buildDirections(opts){
+  const dirs = [];
+  if(opts.h) dirs.push([0,1]);
+  if(opts.v) dirs.push([1,0]);
+  if(opts.d) dirs.push([1,1],[1,-1]);
+  if(opts.rev){
+    for(const [dr,dc] of dirs.slice()) dirs.push([-dr,-dc]);
+  }
+  return dirs;
+}
+
+// Probeert alle woorden te plaatsen; geeft {grid, mask, placements, missed}
+function placeWords(words, rows, cols, dirs){
+  const sorted = [...words].sort((a,b)=>b.length-a.length);
+  const grid = Array.from({length:rows},()=>Array(cols).fill(null));
+  const mask = Array.from({length:rows},()=>Array(cols).fill(false));
+  const placements = [], missed = [];
+
+  for(const word of sorted){
+    let placed = false;
+    const candidates = [];
+    for(const [dr,dc] of dirs){
+      const rMin = dr===-1 ? word.length-1 : 0;
+      const rMax = dr===1  ? rows-word.length : rows-1;
+      const cMin = dc===-1 ? word.length-1 : 0;
+      const cMax = dc===1  ? cols-word.length : cols-1;
+      for(let r=rMin;r<=rMax;r++)
+        for(let c=cMin;c<=cMax;c++)
+          candidates.push([r,c,dr,dc]);
+    }
+    shuffle(candidates);
+    for(const [r,c,dr,dc] of candidates){
+      let ok = true;
+      for(let i=0;i<word.length;i++){
+        const cell = grid[r+dr*i][c+dc*i];
+        if(cell!==null && cell!==word[i]){ ok=false; break; }
+      }
+      if(!ok) continue;
+      const cells = [];
+      for(let i=0;i<word.length;i++){
+        grid[r+dr*i][c+dc*i] = word[i];
+        mask[r+dr*i][c+dc*i] = true;
+        cells.push([r+dr*i, c+dc*i]);
+      }
+      placements.push({word, cells, dr, dc});
+      placed = true;
+      break;
+    }
+    if(!placed) missed.push(word);
+  }
+  return {grid, mask, placements, missed};
+}
+
+// Vult lege vakjes met frequentie-gewogen willekeurige letters
+function fillGrid(grid){
+  for(const row of grid)
+    for(let c=0;c<row.length;c++)
+      if(row[c]===null) row[c] = randomLetter();
+}
+
+// Somt elke rechte lijn van het raster op (rijen, kolommen, beide diagonale
+// families) als een array van [r,c]-cellen. Elke lijn plus zijn omkering
+// samen dekken alle 8 richtingen.
+function allLines(rows, cols){
+  const lines = [];
+  for(let r=0;r<rows;r++) lines.push(Array.from({length:cols},(_,c)=>[r,c]));
+  for(let c=0;c<cols;c++) lines.push(Array.from({length:rows},(_,r)=>[r,c]));
+  for(let s=0;s<rows+cols-1;s++){           // ↘ diagonalen
+    const line=[];
+    for(let r=Math.max(0,s-cols+1); r<rows && s-r>=0; r++){
+      const c=s-r; if(c<cols) line.push([r,c]);
+    }
+    if(line.length>=2) lines.push(line);
+  }
+  for(let s=-(rows-1); s<cols; s++){        // ↗ diagonalen
+    const line=[];
+    for(let r=0;r<rows;r++){
+      const c=r+s; if(c>=0 && c<cols) line.push([r,c]);
+    }
+    if(line.length>=2) lines.push(line);
+  }
+  return lines;
+}
+
+// Schoont het gevulde raster op zodat geen geblokkeerd woord in enige lijn
+// voorkomt, vooruit of achteruit. Raakt nooit cellen van geplaatste woorden.
+function sanitizeGrid(grid, mask, rows, cols){
+  const lines = allLines(rows, cols);
+  const warnings = [];
+  const MAX_PASSES = 400;
+
+  for(let pass=0; pass<MAX_PASSES; pass++){
+    let dirty = false;
+
+    for(const line of lines){
+      const str = line.map(([r,c])=>grid[r][c]).join("");
+      for(const bad of BLOCKLIST){
+        // vooruit en achteruit langs deze lijn controleren
+        for(const needle of [bad, bad.split("").reverse().join("")]){
+          let idx = str.indexOf(needle);
+          while(idx !== -1){
+            const span = line.slice(idx, idx+needle.length);
+            const free = span.filter(([r,c])=>!mask[r][c]);
+            if(free.length===0){
+              // elke letter hoort bij geplaatste woorden — niet aan te passen
+              const key = "LOCKED:"+bad;
+              if(!warnings.includes(key)) warnings.push(key);
+            }else{
+              const [r,c] = free[Math.floor(Math.random()*free.length)];
+              grid[r][c] = randomLetterExcept(grid[r][c]);
+              dirty = true;
+            }
+            idx = str.indexOf(needle, idx+1);
+          }
+        }
+      }
+      if(dirty) break; // lijnteksten zijn verouderd — opnieuw scannen
+    }
+    if(!dirty) return {clean:true, warnings};
+  }
+  return {clean:false, warnings};
+}
+
+/* =========================================================
+   3. INTERFACE
+   ========================================================= */
+
+const $ = id => document.getElementById(id);
+let state = null;          // {grid, rows, cols, placements, missed}
+let showingSolution = false;
+
+// moduskeuze
+let mode = "custom";
+$("modeCustom").addEventListener("click",()=>setMode("custom"));
+$("modeRandom").addEventListener("click",()=>setMode("random"));
+function setMode(m){
+  mode = m;
+  $("modeCustom").classList.toggle("on", m==="custom");
+  $("modeRandom").classList.toggle("on", m==="random");
+  $("customBox").style.display = m==="custom" ? "" : "none";
+  $("randomBox").style.display = m==="random" ? "" : "none";
+}
+
+$("generateBtn").addEventListener("click", generate);
+$("solutionBtn").addEventListener("click", ()=>{
+  showingSolution = !showingSolution;
+  document.body.classList.toggle("print-solution", showingSolution);
+  $("solutionBtn").textContent = showingSolution ? "Verberg oplossing" : "Toon oplossing";
+  $("legend").style.display = showingSolution ? "" : "none";
+  paintSolution();
+});
+$("printBtn").addEventListener("click", ()=>window.print());
+
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+function generate(){
+  const rows = clamp(parseInt($("rows").value,10)||15, 5, 40);
+  const cols = clamp(parseInt($("cols").value,10)||10, 5, 40);
+  $("rows").value = rows; $("cols").value = cols;
+
+  const dirOpts = {
+    h: $("dirH").checked, v: $("dirV").checked,
+    d: $("dirD").checked, rev: $("dirRev").checked
+  };
+  if(!dirOpts.h && !dirOpts.v && !dirOpts.d){
+    return showNotices([["bad","Kies minstens één richting (horizontaal, verticaal of diagonaal)."]]);
+  }
+  const dirs = buildDirections(dirOpts);
+
+  let words;
+  if(mode==="custom"){
+    words = parseCustomWords($("wordInput").value);
+    if(words.length===0){
+      return showNotices([["bad","Voer minstens één woord van twee of meer letters in, of kies “Willekeurig”."]]);
+    }
+  }else{
+    const n = clamp(parseInt($("wordCount").value,10)||12, 1, 40);
+    $("wordCount").value = n;
+    const maxDim = Math.max(rows, cols);
+    words = shuffle(DUTCH_BANK.filter(w=>w.length<=maxDim)).slice(0,n);
+  }
+
+  const tooLong = words.filter(w=>w.length>Math.max(rows,cols));
+  words = words.filter(w=>w.length<=Math.max(rows,cols));
+
+  // Woorden die zelf een geblokkeerde term bevatten zijn nooit op te schonen;
+  // markeren, maar de gebruiker beslist (die heeft ze bewust ingevoerd).
+  const selfBlocked = words.filter(w=>BLOCKLIST.some(b=>w.includes(b)));
+
+  // Volledige pogingen: plaatsen → vullen → opschonen. De hele indeling wordt
+  // opnieuw geprobeerd als geplaatste woorden samen een geblokkeerd woord vormen.
+  let best = null, scrub = null;
+  for(let attempt=0; attempt<20; attempt++){
+    const res = placeWords(words, rows, cols, dirs);
+    fillGrid(res.grid);
+    const sc = sanitizeGrid(res.grid, res.mask, rows, cols);
+    const lockedOk = sc.warnings.every(w=>selfBlocked.some(sb=>sb.includes(w.slice(7))));
+    const score = res.missed.length + (sc.clean && lockedOk ? 0 : 100);
+    if(!best || score < best.score){ best = res; best.score = score; scrub = sc; }
+    if(best.score===0) break;
+  }
+
+  state = {grid:best.grid, rows, cols, placements:best.placements, missed:best.missed};
+  showingSolution = false;
+  document.body.classList.remove("print-solution");
+  $("solutionBtn").textContent = "Toon oplossing";
+  $("solutionBtn").disabled = false;
+  $("printBtn").disabled = false;
+  $("legend").style.display = "none";
+
+  renderGrid();
+  renderWordList();
+
+  const notes = [];
+  if(tooLong.length) notes.push(["bad","Te lang voor dit raster en overgeslagen: "+tooLong.join(", ")]);
+  if(best.missed.length) notes.push(["bad","Pasten niet (probeer een groter raster of meer richtingen): "+best.missed.join(", ")]);
+  if(selfBlocked.length) notes.push(["warn","Let op: deze ingevoerde woorden bevatten termen van de blokkadelijst en zijn toch geplaatst: "+selfBlocked.join(", ")]);
+  if(!scrub.clean) notes.push(["bad","De opvulling kon deze keer niet volledig worden opgeschoond — klik nogmaals op “Maak puzzel”."]);
+  for(const w of scrub.warnings){
+    const term = w.slice(7);
+    if(!selfBlocked.some(sb=>sb.includes(term)))
+      notes.push(["warn","Let op: kruisende woorden vormen samen “"+term+"”. Opnieuw genereren lost dit meestal op — klik nogmaals op “Maak puzzel”."]);
+  }
+  showNotices(notes);
+
+  $("emptyState").style.display = "none";
+  $("puzzleArea").style.display = "";
+}
+
+function renderGrid(){
+  const {grid, rows, cols} = state;
+  const cell = cols>32 || rows>32 ? 22 : cols>22 ? 26 : 32;
+  const table = $("gridTable");
+  table.style.setProperty("--cell", cell+"px");
+  table.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  for(let r=0;r<rows;r++){
+    const tr = document.createElement("tr");
+    for(let c=0;c<cols;c++){
+      const td = document.createElement("td");
+      td.textContent = grid[r][c];
+      td.id = "cell-"+r+"-"+c;
+      // subtiel verschil per houten blokje, voor een natuurlijke look
+      const b = 0.96 + Math.random()*0.08;
+      const rot = (Math.random()*1.6 - 0.8).toFixed(2);
+      td.style.filter = "brightness("+b.toFixed(3)+")";
+      td.style.transform = "rotate("+rot+"deg)";
+      tr.appendChild(td);
+    }
+    frag.appendChild(tr);
+  }
+  table.appendChild(frag);
+  paintSolution();
+}
+
+function dirClass(p){
+  if(p.dr===0) return "h-h";              // horizontaal → terracotta
+  if(p.dc===0) return "h-v";              // verticaal → leisteenblauw
+  return "h-d";                           // diagonaal → oker
+}
+
+function paintSolution(){
+  document.querySelectorAll("td.h-h,td.h-v,td.h-d").forEach(td=>{
+    td.classList.remove("h-h","h-v","h-d");
+  });
+  if(!showingSolution || !state) return;
+  for(const p of state.placements){
+    const cls = dirClass(p);
+    for(const [r,c] of p.cells){
+      const td = $("cell-"+r+"-"+c);
+      if(td) td.classList.add(cls);
+    }
+  }
+}
+
+function renderWordList(){
+  const box = $("wordList");
+  box.innerHTML = "";
+  const all = [...state.placements.map(p=>({word:p.word, p})),
+               ...state.missed.map(w=>({word:w, p:null}))]
+              .sort((a,b)=>a.word.localeCompare(b.word));
+  for(const item of all){
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "word-chip" + (item.p ? "" : " missed");
+    chip.textContent = item.word;
+    if(item.p){
+      chip.title = "Houd ingedrukt om dit woord even te zien";
+      const peek = on => {
+        for(const [r,c] of item.p.cells){
+          const td = $("cell-"+r+"-"+c);
+          if(td) td.classList.toggle("hover-word", on);
+        }
+      };
+      chip.addEventListener("mousedown",()=>peek(true));
+      chip.addEventListener("mouseup",()=>peek(false));
+      chip.addEventListener("mouseleave",()=>peek(false));
+      chip.addEventListener("touchstart",e=>{peek(true);},{passive:true});
+      chip.addEventListener("touchend",()=>peek(false));
+      chip.addEventListener("keydown",e=>{ if(e.key===" "||e.key==="Enter"){e.preventDefault();peek(true);} });
+      chip.addEventListener("keyup",()=>peek(false));
+    }
+    box.appendChild(chip);
+  }
+}
+
+function showNotices(list){
+  const box = $("notices");
+  box.innerHTML = "";
+  for(const [kind,msg] of list){
+    const div = document.createElement("div");
+    div.className = "notice" + (kind==="bad" ? " bad" : "");
+    div.textContent = msg;
+    box.appendChild(div);
+  }
+  if(list.length && $("puzzleArea").style.display==="none"){
+    // fouten vóór de eerste puzzel: toon ze in het hoofdvenster
+    $("emptyState").style.display = "none";
+    $("puzzleArea").style.display = "";
+  }
+}
+</script>
+</body>
+</html>
