@@ -181,6 +181,7 @@
 
     <button class="btn" id="generateBtn" type="button">Maak puzzel</button>
     <button class="btn secondary" id="solutionBtn" type="button" disabled>Toon oplossing</button>
+    <button class="btn secondary" id="saveBtn" type="button" disabled>Opslaan als afbeelding</button>
     <button class="btn secondary" id="printBtn" type="button" disabled>Afdrukken</button>
 
     <p class="meta">Opvulletters volgen de Nederlandse letterfrequentie en worden automatisch gecontroleerd, zodat er nergens scheldwoorden ontstaan — horizontaal, verticaal of diagonaal, ook niet achterstevoren.</p>
@@ -438,6 +439,7 @@ $("solutionBtn").addEventListener("click", ()=>{
   paintSolution();
 });
 $("printBtn").addEventListener("click", ()=>window.print());
+$("saveBtn").addEventListener("click", saveImage);
 
 function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
 
@@ -494,6 +496,7 @@ function generate(){
   $("solutionBtn").textContent = "Toon oplossing";
   $("solutionBtn").disabled = false;
   $("printBtn").disabled = false;
+  $("saveBtn").disabled = false;
   $("legend").style.display = "none";
 
   renderGrid();
@@ -521,6 +524,12 @@ function renderGrid(){
   const table = $("gridTable");
   table.style.setProperty("--cell", cell+"px");
   table.innerHTML = "";
+  // subtiel verschil per houten blokje, voor een natuurlijke look —
+  // opgeslagen in state zodat de opgeslagen afbeelding identiek is
+  state.jitter = Array.from({length:rows},()=>Array.from({length:cols},()=>({
+    b: 0.96 + Math.random()*0.08,
+    rot: Math.random()*1.6 - 0.8
+  })));
   const frag = document.createDocumentFragment();
   for(let r=0;r<rows;r++){
     const tr = document.createElement("tr");
@@ -528,11 +537,9 @@ function renderGrid(){
       const td = document.createElement("td");
       td.textContent = grid[r][c];
       td.id = "cell-"+r+"-"+c;
-      // subtiel verschil per houten blokje, voor een natuurlijke look
-      const b = 0.96 + Math.random()*0.08;
-      const rot = (Math.random()*1.6 - 0.8).toFixed(2);
-      td.style.filter = "brightness("+b.toFixed(3)+")";
-      td.style.transform = "rotate("+rot+"deg)";
+      const j = state.jitter[r][c];
+      td.style.filter = "brightness("+j.b.toFixed(3)+")";
+      td.style.transform = "rotate("+j.rot.toFixed(2)+"deg)";
       tr.appendChild(td);
     }
     frag.appendChild(tr);
@@ -590,6 +597,200 @@ function renderWordList(){
     }
     box.appendChild(chip);
   }
+}
+
+/* =========================================================
+   4. OPSLAAN ALS AFBEELDING (PNG)
+   ========================================================= */
+
+function rr(ctx, x, y, w, h, r){
+  ctx.beginPath();
+  if(ctx.roundRect){ ctx.roundRect(x, y, w, h, r); return; }
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
+  ctx.closePath();
+}
+
+function saveImage(){
+  if(!state) return;
+  const {grid, rows, cols, placements} = state;
+  const S = 2;                    // 2× voor scherpte
+  const tile = 44, gap = 5, boardPad = 12, framePad = 18, margin = 26;
+  const gridW = cols*tile + (cols-1)*gap;
+  const gridH = rows*tile + (rows-1)*gap;
+  const frameW = gridW + 2*(boardPad+framePad);
+  const frameH = gridH + 2*(boardPad+framePad);
+  const width = Math.max(frameW + margin*2, 480);
+
+  // welke tegels zijn oplossing-gekleurd?
+  const hl = new Map();
+  if(showingSolution){
+    for(const p of state.placements){
+      const cls = dirClass(p);
+      for(const [r,c] of p.cells) hl.set(r+","+c, cls);
+    }
+  }
+
+  // woordenlijstregels berekenen (alleen geplaatste woorden)
+  const wordFont = "600 16px 'Courier New', monospace";
+  const tmp = document.createElement("canvas").getContext("2d");
+  tmp.font = wordFont;
+  const maxLineW = width - margin*2;
+  const wordsSorted = placements.map(p=>p.word).sort((a,b)=>a.localeCompare(b));
+  const lines = []; let line = "";
+  for(const w of wordsSorted){
+    const cand = line ? line+"   "+w : w;
+    if(line && tmp.measureText(cand).width > maxLineW){ lines.push(line); line = w; }
+    else line = cand;
+  }
+  if(line) lines.push(line);
+
+  const titleH = 40, lineH = 25;
+  const legendH = showingSolution ? 30 : 0;
+  const height = margin + frameH + 20 + titleH + legendH + lines.length*lineH + margin;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width*S; canvas.height = height*S;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(S, S);
+
+  // achtergrond
+  ctx.fillStyle = "#F7F5F0";
+  ctx.fillRect(0, 0, width, height);
+
+  const fx = (width-frameW)/2, fy = margin;
+
+  // ---- houten lijst ----
+  rr(ctx, fx, fy, frameW, frameH, 16);
+  ctx.fillStyle = "#7E4F2B";
+  ctx.fill();
+  ctx.save();
+  rr(ctx, fx, fy, frameW, frameH, 16);
+  ctx.clip();
+  for(let i = -frameH; i < frameW + frameH; i += 12){   // houtnerf
+    ctx.strokeStyle = (Math.floor(i/12) % 2) ? "rgba(255,255,255,.07)" : "rgba(0,0,0,.12)";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(fx+i, fy);
+    ctx.lineTo(fx+i + frameH*0.12, fy+frameH);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // ---- binnenbord ----
+  const bx = fx+framePad, by = fy+framePad;
+  rr(ctx, bx, by, frameW-2*framePad, frameH-2*framePad, 9);
+  ctx.fillStyle = "#F3E9D6";
+  ctx.fill();
+  ctx.save();
+  rr(ctx, bx, by, frameW-2*framePad, frameH-2*framePad, 9);
+  ctx.clip();
+  ctx.strokeStyle = "rgba(90,60,30,.30)";               // binnenschaduw
+  ctx.lineWidth = 7;
+  rr(ctx, bx-2, by-2, frameW-2*framePad+4, frameH-2*framePad+4, 9);
+  ctx.stroke();
+  ctx.restore();
+
+  // ---- tegels ----
+  const letterColors = {"h-h":"#FFFFFF", "h-v":"#FFFFFF", "h-d":"#3A3010"};
+  const tileColors   = {"h-h":"#B85C4E", "h-v":"#52708F", "h-d":"#C9A227"};
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const x = bx+boardPad + c*(tile+gap);
+      const y = by+boardPad + r*(tile+gap);
+      const j = (state.jitter && state.jitter[r] && state.jitter[r][c]) || {b:1, rot:0};
+      const cls = hl.get(r+","+c) || null;
+      ctx.save();
+      ctx.translate(x+tile/2, y+tile/2);
+      ctx.rotate(j.rot*Math.PI/180);
+      // slagschaduw
+      rr(ctx, -tile/2+1, -tile/2+2.5, tile, tile, 5);
+      ctx.fillStyle = "rgba(74,52,28,.32)";
+      ctx.fill();
+      // tegelvlak
+      rr(ctx, -tile/2, -tile/2, tile, tile, 5);
+      ctx.fillStyle = cls ? tileColors[cls] : "#E4CBA2";
+      ctx.fill();
+      if(!cls){
+        // houtnerf op de tegel
+        ctx.strokeStyle = "rgba(120,85,45,.20)";
+        ctx.lineWidth = 1.4;
+        for(const off of [-tile*0.24, 0.5, tile*0.26]){
+          ctx.beginPath();
+          ctx.moveTo(-tile/2+4, off);
+          ctx.lineTo(tile/2-4, off + tile*0.05);
+          ctx.stroke();
+        }
+        // helderheidsvariatie per blokje
+        const d = j.b - 1;
+        rr(ctx, -tile/2, -tile/2, tile, tile, 5);
+        ctx.fillStyle = d >= 0 ? "rgba(255,255,255,"+(d*1.4).toFixed(3)+")"
+                               : "rgba(60,40,20,"+(-d*1.4).toFixed(3)+")";
+        ctx.fill();
+        // lichtrand bovenaan
+        ctx.strokeStyle = "rgba(255,255,255,.4)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-tile/2+5, -tile/2+1.5);
+        ctx.lineTo(tile/2-5, -tile/2+1.5);
+        ctx.stroke();
+      }
+      // letter met reliëf
+      ctx.font = "800 "+Math.round(tile*0.52)+"px 'Arial Rounded MT Bold','Trebuchet MS',Verdana,sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      if(!cls){
+        ctx.fillStyle = "rgba(255,255,255,.55)";
+        ctx.fillText(grid[r][c], 0, 2.2);
+      }
+      ctx.fillStyle = cls ? letterColors[cls] : "#5B4226";
+      ctx.fillText(grid[r][c], 0, 1);
+      ctx.restore();
+    }
+  }
+
+  // ---- woordenlijst ----
+  let ty = fy + frameH + 20 + 22;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = "600 13px system-ui, sans-serif";
+  ctx.fillStyle = "#7A736A";
+  ctx.fillText("ZOEK DEZE WOORDEN", margin, ty);
+  ty += 8;
+
+  if(showingSolution){
+    ty += 20;
+    ctx.font = "500 12.5px system-ui, sans-serif";
+    let lx = margin;
+    for(const [label, col] of [["Horizontaal","#B85C4E"],["Verticaal","#52708F"],["Diagonaal","#C9A227"]]){
+      rr(ctx, lx, ty-11, 12, 12, 4);
+      ctx.fillStyle = col;
+      ctx.fill();
+      ctx.fillStyle = "#7A736A";
+      ctx.fillText(label, lx+17, ty);
+      lx += 17 + ctx.measureText(label).width + 20;
+    }
+    ty += 6;
+  }
+
+  ctx.font = wordFont;
+  ctx.fillStyle = "#2B2622";
+  for(const l of lines){ ty += lineH; ctx.fillText(l, margin, ty); }
+
+  // ---- downloaden ----
+  const name = "woordzoeker-"+rows+"x"+cols+(showingSolution ? "-oplossing" : "")+".png";
+  canvas.toBlob(blob=>{
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  }, "image/png");
 }
 
 function showNotices(list){
