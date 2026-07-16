@@ -69,6 +69,12 @@
   .btn:disabled:hover{filter:none;background:#F0EDE6}
   .btn.secondary:disabled:hover{background:#F0EDE6}
 
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;align-items:center}
+  .btn.inline{display:inline-block;width:auto;background:#F0EDE6;color:var(--ink);font-size:13.5px;padding:10px 18px}
+  .btn.inline:hover{filter:none;background:#E7E3D9}
+  .solution-check{margin:0 0 0 6px;cursor:pointer;font-weight:500}
+  .solution-check input{cursor:pointer}
+
   /* ---------- houten bord ---------- */
   .grid-wrap{
     display:inline-block;padding:16px;border-radius:16px;
@@ -92,10 +98,10 @@
     box-shadow: 0 2px 3px rgba(74,52,28,.35), inset 0 1px 0 rgba(255,255,255,.4);
     text-shadow: 0 1px 0 rgba(255,255,255,.5), 0 -1px 1px rgba(60,38,15,.4);
   }
-  td.h-h{background:var(--hl-h);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.3)}
-  td.h-v{background:var(--hl-v);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.3)}
-  td.h-d{background:var(--hl-d);color:#3A3010;text-shadow:0 1px 0 rgba(255,255,255,.35)}
-  td.hover-word{outline:3px solid var(--accent);outline-offset:-2px}
+  table.ws td.h-h{background:var(--hl-h);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.3)}
+  table.ws td.h-v{background:var(--hl-v);color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.3)}
+  table.ws td.h-d{background:var(--hl-d);color:#3A3010;text-shadow:0 1px 0 rgba(255,255,255,.35)}
+  table.ws td.hover-word{outline:3px solid var(--accent);outline-offset:-2px}
 
   /* ---------- woordenlijst ---------- */
   .legend{display:flex;gap:18px;flex-wrap:wrap;margin:16px 0 4px;font-size:13px;color:var(--muted)}
@@ -180,9 +186,6 @@
     </div>
 
     <button class="btn" id="generateBtn" type="button">Maak puzzel</button>
-    <button class="btn secondary" id="solutionBtn" type="button" disabled>Toon oplossing</button>
-    <button class="btn secondary" id="saveBtn" type="button" disabled>Opslaan als afbeelding</button>
-    <button class="btn secondary" id="printBtn" type="button" disabled>Afdrukken</button>
 
     <p class="meta">Opvulletters volgen de Nederlandse letterfrequentie en worden automatisch gecontroleerd, zodat er nergens scheldwoorden ontstaan — horizontaal, verticaal of diagonaal, ook niet achterstevoren.</p>
   </aside>
@@ -195,6 +198,12 @@
     </div>
     <div id="puzzleArea" style="display:none">
       <div class="grid-wrap"><div class="grid-inner"><table class="ws" id="gridTable" aria-label="Woordzoekerraster"></table></div></div>
+
+      <div class="actions no-print">
+        <button class="btn inline" id="saveBtn" type="button">Opslaan als afbeelding</button>
+        <button class="btn inline" id="printBtn" type="button">Print</button>
+        <label class="check solution-check"><input id="solutionCheck" type="checkbox"> Toon oplossing</label>
+      </div>
 
       <div class="legend no-print" id="legend" style="display:none">
         <span><i class="sw r"></i>Horizontaal</span>
@@ -431,10 +440,9 @@ function setMode(m){
 }
 
 $("generateBtn").addEventListener("click", generate);
-$("solutionBtn").addEventListener("click", ()=>{
-  showingSolution = !showingSolution;
+$("solutionCheck").addEventListener("change", e=>{
+  showingSolution = e.target.checked;
   document.body.classList.toggle("print-solution", showingSolution);
-  $("solutionBtn").textContent = showingSolution ? "Verberg oplossing" : "Toon oplossing";
   $("legend").style.display = showingSolution ? "" : "none";
   paintSolution();
 });
@@ -493,10 +501,7 @@ function generate(){
   state = {grid:best.grid, rows, cols, placements:best.placements, missed:best.missed};
   showingSolution = false;
   document.body.classList.remove("print-solution");
-  $("solutionBtn").textContent = "Toon oplossing";
-  $("solutionBtn").disabled = false;
-  $("printBtn").disabled = false;
-  $("saveBtn").disabled = false;
+  $("solutionCheck").checked = false;
   $("legend").style.display = "none";
 
   renderGrid();
